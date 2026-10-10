@@ -1,0 +1,31 @@
+{
+  "name": "opencode-jev-pre-llm",
+  "version": "0.0.1",
+  "description": "Pre-LLM determinism classifier via TypeSafe JEV for OpenCode",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.6",
+    "vitest": "^2"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'add linter later'"
+  },
+  "files": [
+    "src",
+    "test",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ]
+}
