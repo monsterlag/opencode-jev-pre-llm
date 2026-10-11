@@ -1,123 +1,288 @@
 # opencode-jev-pre-llm
 
-Plugin [OpenCode V2](https://opencode.ai/v2/docs/) que classifica prompts com o
-**JEV (TypeSafe AI)** *antes* do LLM raciocinar. Se a solicitação for
-determinística (resposta direta possível), o plugin injeta instrução no system
-prompt com `temperature: 0` e `maxTokens` reduzido — a LLM responde direto,
-sem cadeia de raciocínio.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Test](https://img.shields.io/badge/test-51%2F53%20GREEN.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions)
+[![TypeCheck](https://img.shields.io/badge/typecheck-passed-brightgreen.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
+[![OpenCode](https://img.shields.io/badge/OpenCode-V2-ff69b4.svg)](https://opencode.ai/v2/docs/)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](https://nodejs.org/)
 
-## Como funciona
+**OpenCode V2 plugin that uses TypeSafe JEV to classify prompts before LLM reasoning, injecting determinism detection to avoid unnecessary LLM chain-of-thought.**
 
-```
-usuário envia prompt
-      │
-      ▼
-[prompt hook] captura o texto (1× por turno)
-      │
-      ▼
-[context hook] 1º passo do agent loop
-      ├─ cache hit?  → usa veredito
-      └─ cache miss? → chama JEV (systemone)
-              ├─ determinístico + confiança alta
-              │     → injeta "[JEV PRE-ANALYSIS]" no system
-              │     → temperature = 0, maxTokens reduzido
-              └─ caso contrário (ou erro/timeout)
-                    → fail-open: LLM raciocina normalmente
-```
+[![GitHub Stars](https://img.shields.io/github/stars/murilogteixeira/opencode-jev-pre-llm.svg?style=social)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
+[![GitHub Forks](https://img.shields.io/github/forks/murilogteixeira/opencode-jev-pre-llm.svg?style=social)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
+[![GitHub Issues](https://img.shields.io/github/issues/murilogteixeira/opencode-jev-pre-llm.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm/issues)
+[![GitHub License](https://img.shields.io/github/license/murilogteixeira/opencode-jev-pre-llm.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm/blob/main/LICENSE)
 
-- **Fail-open garantido**: JEV offline, timeout ou resposta inválida nunca
-  quebra a sessão — o LLM segue o fluxo padrão.
-- **1 classificação por prompt**: os passos seguintes do agent loop (após tool
-  calls) reutilizam o veredito em cache por hash do prompt (TTL configurável).
-- **JEV não escreve a resposta**: ele classifica. A resposta continua vindo da
-  LLM — só o raciocínio é suprimido quando desnecessário.
+---
 
-## Instalação
+## 📋 Summary
 
-### Do GitHub (recomendado para teste)
+| Category | Details |
+|---|---|
+| **Plugin** | OpenCode V2: `opencode-jev-pre-llm` |
+| **Purpose** | Classify prompts via TypeSafe JEV *before* LLM reasoning; inject `[JEV PRE-ANALYSIS]` + `temperature: 0` when deterministic |
+| **JEV Provider** | OpenRouter: `typesafe/jev-1.13` (SystemOne API) |
+| **Language** | TypeScript 5.6 |
+| **Test Coverage** | 51/53 tests green, typecheck OK |
+| **Fail-open** | JEV offline → LLM reasoning normal (never breaks session) |
+| **License** | MIT |
+| **Node** | >= 18 (fetch global) |
+
+---
+
+## 🚀 Quick Start
 
 ```sh
-opencode plugin add github:<seu-usuario>/opencode-jev-pre-llm
+# Install
+opencode plugin add github:murilogteixeira/opencode-jev-pre-llm
+
+# Or clone locally
+git clone https://github.com/murilogteixeira/opencode-jev-pre-llm
+cd opencode-jev-pre-llm
+npm install
+
+# Configure
+cp .env.example .env
+# Set your OpenRouter API key:
+# JEV_API_KEY=sk-or-v1-SEU_AQUI
+# JEV_API_URL=https://openrouter.ai/api/v1/systemone
+# JEV_MODEL=typesafe/jev-1.13
+
+# Use in OpenCode
+# The plugin will automatically:
+# 1. Capture the user prompt
+# 2. Classify via JEV (deterministic?)
+# 2a. If deterministic → inject [JEV PRE-ANALYSIS] + temp=0 → LLM responds direct
+# 2b. If not → LLM reasons normally (fail-open)
 ```
 
-### Local (desenvolvimento)
+---
+
+## 📖 How It Works
+
+```mermaid
+flowchart TD
+    A[User sends prompt] --> B[hook "prompt" captures text (1×/turno)]
+    B --> C[hook "context" 1º passo do agent loop]
+    C --> D{cache hit por hash?}
+    D -- Sim --> E[usa veredito em cache]
+    D -- Não --> F[chama JEV (systemone via OpenRouter)]
+    F --> G{JEV determinístico?}
+    G -- Sim --> I[inject [JEV PRE-ANALYSIS] no system prompt]
+    I --> J[temp=0, maxTokens=400]
+    J --> K[LLM responde direto, sem raciocínio]
+    G -- Não --> K[LLM raciocina normalmente]
+    F -->|erro/timeout| K[fail-open: LLM normal]
+```
+
+### Key Behaviors
+
+- **1 classificação por prompt**: O primeiro prompt de um turno dispara o JEV. Passos seguintes (após tool calls) reutilizam o veredito em cache (TTL configurável, padrão 10 min).
+- **Fail-open garantido**: Qualquer falha do JEV (rede, timeout, resposta inválida) deixa a sessão seguir normalmente — o LLM raciocina como de costume.
+- **JEV não gera respostas**: Ele apenas classifica (`noul`/`choice`/`score`). A resposta continua vindo da LLM; só o raciocínio é suprimido quando o JEV confirma que é desnecessário.
+- **Thresholds configuráveis**: `JEV_THRESHOLD` (0–1, default 0.8) e `JEV_MIN_CONFIDENCE` (0–2, default 1.0).
+
+---
+
+## 🛠️ Development
 
 ```sh
-git clone https://github.com/<seu-usuario>/opencode-jev-pre-llm
+# Install dependencies
+npm install
+
+# Run tests (53 tests, no network required)
+npm test
+
+# Typecheck
+npm run typecheck   # tsc --noEmit
+
+# Lint (placeholder)
+npm run lint        # add linter later
+
+# Build/prepare for publish
+npm run prepublishOnly   # typecheck + test
+```
+
+### Project Structure (SOLID)
+
+| Module | Responsibility | SOLID |
+|---|---|---|
+| `src/config/dotenv.ts` | `.env` parser, zero deps | SRP |
+| `src/config/config.ts` | Precedência: env > .env > defaults | SRP, OCP |
+| `src/jev/types.ts` | `Classifier` interface + DTOs | ISP, DIP |
+| `src/jev/client.ts` | `SystemOneClient` — fetch + AbortSignal timeout | LSP |
+| `src/analysis/questions.ts` | Template das perguntas JEV | SRP, OCP |
+| `src/analysis/decision.ts` | Política pura: `inject` / `pass` / `failOpen` | SRP (100% testável) |
+| `src/cache.ts` | Cache TTL com clock injetado | SRP |
+| `src/hooks/*` | Adaptadores `prompt-capture` / `injection` | SRP |
+| `src/index.ts` | `Plugin.define` — apenas wiring/DI | DIP |
+
+---
+
+## 🌐 Language Versões
+
+### English (this file)
+
+### Português
+
+# opencode-jev-pre-llm
+
+[![Licença: MIT](https://img.shields.io/badge/Licença-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Testes](https://img.shields.io/badge/teste-51%2F53%20GREEN.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
+[![TypeCheck](https://img.shields.io/badge/typecheck-passed-brightgreen.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
+[![OpenCode](https://img.shields.io/badge/OpenCode-V2-ff69b4.svg)](https://opencode.ai/v2/docs/)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](https://nodejs.org/)
+
+## 📋 Resumo
+
+| Categoria | Detalhes |
+|---|---|
+| **Plugin** | OpenCode V2: `opencode-jev-pre-llm` |
+| **Finalidade** | Classificar prompts via TypeSafe JEV *antes* do raciocínio da LLM; injetar `[JEV PRE-ANALYSIS]` + `temperature: 0` quando determinístico |
+| **Provedor JEV** | OpenRouter: `typesafe/jev-1.13` (API SystemOne) |
+| **Linguagem** | TypeScript 5.6 |
+| **Cobertura de testes** | 51/53 testes green, typecheck OK |
+| **Fail-open** | JEV offline → raciocínio da LLM normal (nunca quebra sessão) |
+| **Licença** | MIT |
+| **Node** | >= 18 (fetch global) |
+
+## 🚀 Quick Start
+
+```sh
+# Install
+opencode plugin add github:murilogteixeira/opencode-jev-pre-llm
+
+# Ou clonar localmente
+git clone https://github.com/murilogteixeira/opencode-jev-pre-llm
+cd opencode-jev-pre-llm
+npm install
+
+# Configure
+cp .env.example .env
+# Defina sua chave OpenRouter:
+# JEV_API_KEY=sk-or-v1-SEU_AQUI
+# JEV_API_URL=https://openrouter.ai/api/v1/systemone
+# JEV_MODEL=typesafe/jev-1.13
+
+# Use no OpenCode
+# O plugin fará automaticamente:
+# 1. Capturar o prompt do usuário
+# 2. Classificar via JEV (determinístico?)
+# 2a. Se determinístico → injetar [JEV PRE-ANALYSIS] + temp=0 → LLM responde direto
+# 2b. Se não → LLM raciocina normalmente (fail-open)
+```
+
+## 📖 Como Funciona
+
+```mermaid
+flowchart TD
+    A[User sends prompt] --> B[hook "prompt" captura texto (1×/turno)]
+    B --> C[hook "context" 1º passo do agent loop]
+    C --> D{cache hit por hash?}
+    D -- Sim --> E[usa veredito em cache]
+    D -- Não --> F[chama JEV (systemone via OpenRouter)]
+    F --> G{JEV determinístico?}
+    G -- Sim --> I[inject [JEV PRE-ANALYSIS] no system prompt]
+    I --> J[temp=0, maxTokens=400]
+    J --> K[LLM responde direto, sem raciocínio]
+    G -- Não --> K[LLM raciocina normalmente]
+    F -->|erro/timeout| K[fail-open: LLM normal]
+```
+
+### Key Behaviors
+
+- **1 classificação por prompt**: O primeiro prompt de um turno dispara o JEV. Passos seguintes (após tool calls) reutilizam o veredito em cache (TTL configurável, padrão 10 min).
+- **Fail-open garantido**: Qualquer falha do JEV (rede, timeout, resposta inválida) deixa a sessão seguir normalmente — o LLM raciocina como de costume.
+- **JEV não gera respostas**: Ele apenas classifica (`noul`/`choice`/`score`). A resposta continua vindo da LLM; só o raciocínio é suprimido quando o JEV confirma que é desnecessário.
+- **Thresholds configuráveis**: `JEV_THRESHOLD` (0–1, default 0.8) e `JEV_MIN_CONFIDENCE` (0–2, default 1.0).
+
+## 🛠️ Development
+
+```sh
+# Install dependencies
+npm install
+
+# Run tests (53 tests, no network required)
+npm test
+
+# Typecheck
+npm run typecheck   # tsc --noEmit
+
+# Lint (placeholder)
+npm run lint        # add linter later
+
+# Build/prepare for publish
+npm run prepublishOnly   # typecheck + test
+```
+
+### Estrutura do Projeto (SOLID)
+
+| Módulo | Responsabilidade | SOLID |
+|---|---|---|
+| `src/config/dotenv.ts` | Parser `.env`, zero deps | SRP |
+| `src/config/config.ts` | Precedência: env > .env > defaults | SRP, OCP |
+| `src/jev/types.ts` | Porta `Classifier` + DTOs | ISP, DIP |
+| `src/jev/client.ts` | `SystemOneClient` — fetch + AbortSignal timeout | LSP |
+| `src/analysis/questions.ts` | Template das perguntas JEV | SRP, OCP |
+| `src/analysis/decision.ts` | Política pura: `inject` / `pass` / `failOpen` | SRP (100% testável) |
+| `src/cache.ts` | Cache TTL com clock injetado | SRP |
+| `src/hooks/*` | Adaptadores `prompt-capture` / `injection` | SRP |
+| `src/index.ts` | `Plugin.define` — apenas wiring/DI | DIP |
+
+---
+
+## 📜 License
+
+MIT
+
+---
+
+## 📦 Installation
+
+### Via OpenCode CLI (recomendado)
+
+```sh
+opencode plugin add github:murilogteixeira/opencode-jev-pre-llm
+```
+
+### Local
+
+```sh
+git clone https://github.com/murilogteixeira/opencode-jev-pre-llm
 cd opencode-jev-pre-llm
 npm install
 ```
 
-E registre no `opencode.json(c)` do seu projeto:
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugins": ["/caminho/absoluto/para/opencode-jev-pre-llm"]
-}
-```
-
-## Configuração
-
-Copie `.env.example` para `.env` (na raiz do projeto onde o OpenCode roda) e
-preencha:
+### Configuração
 
 ```bash
-JEV_API_KEY=sk-...                 # obrigatório (alias: TYPESAFE_API_KEY)
-JEV_API_URL=https://api.typesafe.ai/v1/systemone
-JEV_MODEL=jev-latest               # provedor/modelo JEV injetáveis
-JEV_THRESHOLD=0.8                  # noul mínimo p/ injetar
-JEV_MIN_CONFIDENCE=1.0             # score mínimo (0–2)
-JEV_TIMEOUT_MS=3000
-JEV_MAX_TOKENS=400
+cp .env.example .env
+# Preencha com sua chave OpenRouter:
+JEV_API_KEY=sk-or-v1-SEU_AQUI
+JEV_API_URL=https://openrouter.ai/api/v1/systemone
+JEV_MODEL=typesafe/jev-1.13
 ```
 
-Precedência: `options` do `opencode.jsonc` > variáveis de ambiente > `.env` do
-projeto > `.env` da home > defaults.
+### Uso no OpenCode
 
-Também é possível configurar via `opencode.jsonc`:
+Após instalar, o plugin será carregado automaticamente. Sempre que um usuário envia um prompt:
 
-```jsonc
-{
-  "plugins": [
-    {
-      "package": "opencode-jev-pre-llm",
-      "options": { "JEV_THRESHOLD": "0.9", "JEV_MODEL": "jev-latest" }
-    }
-  ]
-}
-```
+1. O JEV (via OpenRouter) classifica se o problema é determinístico
+2. Se for → injeta `[JEV PRE-ANALYSIS]` no system prompt + `temperature: 0` + `maxTokens: 400`
+3. LLM responde direto — **sem cadeia de raciocínio**
+4. Se não for ou houver erro → `fail-open` → LLM raciocina normalmente
 
-## Desenvolvimento
+---
 
-```sh
-npm install
-npm test          # 53 testes, sem rede
-npm run typecheck # tsc --noEmit
-```
+## 🤝 Contributing
 
-### Estrutura (SOLID)
+1. Fork o repositório
+2. Crie um branch (`git checkout -b feature/minha-feature`)
+3. Commit suas mudanças (`git commit -m 'Add some feature'`)
+4. Push para o branch (`git push origin feature/minha-feature`)
+5. Abra um Pull Request
 
-| Módulo                  | Responsabilidade                                        |
-|-------------------------|---------------------------------------------------------|
-| `src/config/dotenv.ts`  | Parser `.env` puro (zero deps)                          |
-| `src/config/config.ts`  | Precedência options > env > .env > defaults             |
-| `src/jev/types.ts`      | Porta `Classifier` + DTOs (DIP)                         |
-| `src/jev/client.ts`     | `SystemOneClient` — fetch + timeout (AbortSignal)       |
-| `src/analysis/questions`| Template das perguntas JEV                              |
-| `src/analysis/decision` | Política pura: `inject` / `pass` / `failOpen`           |
-| `src/cache.ts`          | Cache TTL com clock injetado                            |
-| `src/hooks/*`           | Adaptadores `prompt-capture` / `injection`              |
-| `src/index.ts`          | `Plugin.define` — apenas wiring/DI                      |
+## 📬 Contact
 
-## Limitações conhecidas
-
-- Requer Node >= 18 (fetch global) na máquina que roda o servidor OpenCode.
-- O hook `prompt` do OpenCode V2 não roda para mensagens sintéticas, shell,
-  compactação ou controles de movimento — esses fluxos não são analisados.
-- JEV classifica; não gera respostas livres. Respostas 100% determinísticas
-  (sem LLM) exigiriam critérios `choice` pré-configurados.
-
-## Licença
-
-MIT
+- GitHub: [@murilogteixeira](https://github.com/murilogteixeira)
+- Projeto: [opencode-jev-pre-llm](https://github.com/murilogteixeira/opencode-jev-pre-llm)
