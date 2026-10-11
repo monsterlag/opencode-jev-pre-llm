@@ -6,6 +6,8 @@
 [![OpenCode](https://img.shields.io/badge/OpenCode-V2-ff69b4.svg)](https://opencode.ai/v2/docs/)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](https://nodejs.org/)
 
+---
+
 ## 📋 Resumo
 
 | Categoria | Detalhes |
@@ -18,6 +20,8 @@
 | **Fail-open** | JEV offline → raciocínio da LLM normal (nunca quebra sessão) |
 | **Licença** | MIT |
 | **Node** | >= 18 (fetch global) |
+
+---
 
 ## 🚀 Quick Start
 
@@ -42,32 +46,33 @@ cp .env.example .env
 # 1. Capturar o prompt do usuário
 # 2. Classificar via JEV (determinístico?)
 # 2a. Se determinístico → injetar [JEV PRE-ANALYSIS] + temp=0 → LLM responde direto
-# 2b. Se não → LLM raciocina normalmente (fail-open)
+# 2b. Se não → LLM raciocina normally (fail-open)
 ```
+
+---
 
 ## 📖 Como Funciona
 
-```mermaid
-flowchart TD
-    A[User sends prompt] --> B[hook "prompt" captura texto (1×/turno)]
-    B --> C[hook "context" 1º passo do agent loop]
-    C --> D{cache hit por hash?}
-    D -- Sim --> E[usa veredito em cache]
-    D -- Não --> F[chama JEV (systemone via OpenRouter)]
-    F --> G{JEV determinístico?}
-    G -- Sim --> I[inject [JEV PRE-ANALYSIS] no system prompt]
-    I --> J[temp=0, maxTokens=400]
-    J --> K[LLM responde direto, sem raciocínio]
-    G -- Não --> K[LLM raciocina normalmente]
-    F -->|erro/timeout| K[fail-open: LLM normal]
-```
+O plugin intercepta prompts do usuário através do sistema de *hooks* do OpenCode:
 
-### Key Behaviors
+1. **Hook `prompt`** — Captura o texto do prompt do usuário (1× por turno)
+2. **Hook `context`** (1º passo do *agent loop*) — Classifica via JEV
 
-- **1 classificação por prompt**: O primeiro prompt de um turno dispara o JEV. Passos seguintes (após tool calls) reutilizam o veredito em cache (TTL configurável, padrão 10 min).
+**Fluxo de decisão:**
+- **Deterministic** (noul ≥ threshold + confidence ≥ min): 
+  - Injeta `[JEV PRE-ANALYSIS]` no system prompt
+  - Define `temperature: 0`, `maxTokens: 400`
+  - LLM responde diretamente — **sem cadeia de raciocínio**
+- **Não determinístico** ou erro JEV:
+  - `fail-open` → LLM raciocina normalmente
+
+**Key behaviors:**
+- **1 classificação por prompt**: O primeiro prompt de um turno dispara o JEV. Passos seguintes (após *tool calls*) reutilizam o veredito em cache (TTL configurável, padrão 10 min).
 - **Fail-open garantido**: Qualquer falha do JEV (rede, timeout, resposta inválida) deixa a sessão seguir normalmente — o LLM raciocina como de costume.
 - **JEV não gera respostas**: Ele apenas classifica (`noul`/`choice`/`score`). A resposta continua vindo da LLM; só o raciocínio é suprimido quando o JEV confirma que é desnecessário.
 - **Thresholds configuráveis**: `JEV_THRESHOLD` (0–1, default 0.8) e `JEV_MIN_CONFIDENCE` (0–2, default 1.0).
+
+---
 
 ## 🛠️ Development
 
@@ -81,10 +86,7 @@ npm test
 # Typecheck
 npm run typecheck   # tsc --noEmit
 
-# Lint (placeholder)
-npm run lint        # add linter later
-
-# Build/prepare for publish
+# Prepare for publish
 npm run prepublishOnly   # typecheck + test
 ```
 
@@ -101,6 +103,8 @@ npm run prepublishOnly   # typecheck + test
 | `src/cache.ts` | Cache TTL com clock injetado | SRP |
 | `src/hooks/*` | Adaptadores `prompt-capture` / `injection` | SRP |
 | `src/index.ts` | `Plugin.define` — apenas wiring/DI | DIP |
+
+---
 
 ## 📜 Licença
 
@@ -143,6 +147,8 @@ Após instalar, o plugin será carregado automaticamente. Sempre que um usuário
 3. LLM responde direto — **sem cadeia de raciocínio**
 4. Se não for ou houver erro → `fail-open` → LLM raciocina normalmente
 
+---
+
 ## 🤝 Contribuindo
 
 1. Fork o repositório
@@ -150,6 +156,8 @@ Após instalar, o plugin será carregado automaticamente. Sempre que um usuário
 3. Commit suas mudanças (`git commit -m 'Add some feature'`)
 4. Push para o branch (`git push origin feature/minha-feature`)
 5. Abra um Pull Request
+
+---
 
 ## 📬 Contato
 
