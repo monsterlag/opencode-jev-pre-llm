@@ -1,10 +1,10 @@
 # opencode-jev-pre-llm
 
+[![Tests](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml)
+[![TypeCheck](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml/badge_type.svg?branch=main)](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Test](https://img.shields.io/badge/test-51%2F53%20GREEN.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions)
-[![TypeCheck](https://img.shields.io/badge/typecheck-passed-brightgreen.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
 [![OpenCode](https://img.shields.io/badge/OpenCode-V2-ff69b4.svg)](https://opencode.ai/v2/docs/)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](https://nodejs.org/)
 
 ---
 

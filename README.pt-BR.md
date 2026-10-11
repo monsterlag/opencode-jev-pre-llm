@@ -1,10 +1,10 @@
 # opencode-jev-pre-llm
 
-[![Licença: MIT](https://img.shields.io/badge/Licença-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Testes](https://img.shields.io/badge/teste-51%2F53%20GREEN.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
-[![TypeCheck](https://img.shields.io/badge/typecheck-passed-brightgreen.svg)](https://github.com/murilogteixeira/opencode-jev-pre-llm)
+[![Tests](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml)
+[![TypeCheck](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml/badge_type.svg?branch=main)](https://github.com/murilogteixeira/opencode-jev-pre-llm/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/Licença-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![OpenCode](https://img.shields.io/badge/OpenCode-V2-ff69b4.svg)](https://opencode.ai/v2/docs/)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](https://nodejs.org/)
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|
 | **Plugin** | OpenCode V2: `opencode-jev-pre-llm` |
 | **Finalidade** | Classificar prompts via TypeSafe JEV *antes* do raciocínio da LLM; injetar `[JEV PRE-ANALYSIS]` + `temperature: 0` quando determinístico |
-| **Provedor JEV** | OpenRouter: `typesafe/jev-1.13` (API SystemOne) |
+| **Provedor JEV | OpenRouter: `typesafe/jev-1.13` (API SystemOne) |
 | **Linguagem** | TypeScript 5.6 |
 | **Cobertura de testes** | 51/53 testes green, typecheck OK |
 | **Fail-open** | JEV offline → raciocínio da LLM normal (nunca quebra sessão) |
@@ -145,7 +145,7 @@ Após instalar, o plugin será carregado automaticamente. Sempre que um usuário
 1. O JEV (via OpenRouter) classifica se o problema é determinístico
 2. Se for → injeta `[JEV PRE-ANALYSIS]` no system prompt + `temperature: 0` + `maxTokens: 400`
 3. LLM responde direto — **sem cadeia de raciocínio**
-4. Se não for ou houver erro → `fail-open` → LLM raciocina normalmente
+4. Se não for ou houver erro → `fail-open` → LLM raciocina normally
 
 ---
 
