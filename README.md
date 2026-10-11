@@ -13,7 +13,7 @@
 |---|---|
 | **Plugin** | OpenCode V2: `opencode-jev-pre-llm` |
 | **Purpose** | Classify prompts via TypeSafe JEV *before* LLM reasoning, injecting determinism detection to avoid unnecessary LLM chain-of-thought |
-| **JEV Provider** | OpenRouter: `typesafe/jev-1.13` (SystemOne API) |
+| **JEV Provider** | TypeSafe AI SystemOne API (`jev-latest` by default) |
 | **Language** | TypeScript 5.6 |
 | **Test Coverage** | 51/53 tests green, typecheck OK |
 | **Fail-open** | JEV offline → LLM reasoning normal (never breaks session) |
@@ -35,10 +35,10 @@ npm install
 
 # Configure
 cp .env.example .env
-# Set your OpenRouter API key:
-# JEV_API_KEY=sk-or-v1-SEU_AQUI
-# JEV_API_URL=https://openrouter.ai/api/v1/systemone
-# JEV_MODEL=typesafe/jev-1.13
+# Set your TypeSafe API key. The URL and model below are the defaults:
+# JEV_API_KEY=your-typesafe-api-key
+# JEV_API_URL=https://api.typesafe.ai/v1/systemone
+# JEV_MODEL=jev-latest
 
 # Use in OpenCode
 # The plugin will automatically:
@@ -70,6 +70,49 @@ The plugin intercepts user prompts through OpenCode's hook system:
 - **Fail-open guaranteed**: Any JEV failure (network, timeout, invalid response) lets the session proceed normally
 - **JEV doesn't generate responses**: It only classifies (`noul`/`choice`/`score`). The response still comes from the LLM; reasoning is only suppressed when JEV confirms it's unnecessary
 - **Configurable thresholds**: `JEV_THRESHOLD` (0–1, default 0.8) and `JEV_MIN_CONFIDENCE` (0–2, default 1.0)
+
+---
+
+## 💬 Example Prompts and Usage
+
+Once the plugin is installed and configured, use it like any other OpenCode session. For example:
+
+| Prompt | Typical JEV classification | What to expect |
+|---|---|---|
+| `What is 2 + 2?` | Deterministic | A concise answer such as `4` |
+| `What is the capital of France?` | Deterministic | A direct answer such as `Paris` |
+| `Convert 100 Celsius to Fahrenheit.` | Deterministic | A concise answer such as `212°F` |
+| `Should I learn Rust or Go for systems programming?` | Non-deterministic | A normal response comparing the options |
+| `How can I improve my code architecture?` | Non-deterministic | A normal response with analysis and suggestions |
+| `Design a REST API for a blog.` | Non-deterministic | A normal response outlining an approach |
+
+These are examples, not guaranteed classifications: JEV makes the decision for each prompt. The plugin never supplies the answer itself. A deterministic verdict adds `[JEV PRE-ANALYSIS]` and requests a concise response; otherwise, the LLM handles the prompt normally.
+
+### Verify the plugin is active
+
+1. Install the plugin with `opencode plugin add github:murilogteixeira/opencode-jev-pre-llm`, or use the local installation steps below.
+2. Set `JEV_API_KEY` in `.env` (copied from `.env.example`) or in the environment where OpenCode runs. The default API URL and model are `https://api.typesafe.ai/v1/systemone` and `jev-latest`.
+3. Start OpenCode and check its logs for `[opencode-jev-pre-llm] active`.
+4. Ask a simple prompt such as `What is 2 + 2?`. When JEV classifies it as deterministic, the context receives the pre-analysis instruction and the answer should be concise.
+5. Try a subjective prompt such as `Should I learn Rust or Go?`. It should be handled normally when JEV classifies it as non-deterministic.
+
+If `JEV_API_KEY` is missing or a JEV request fails, the plugin stays idle or fails open: the prompt is still handled by the LLM without the plugin's instruction. The JEV API key is a secret; do not commit `.env` or share the key.
+
+### Configure behavior
+
+The main options can be set in `.env` or the process environment:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JEV_API_KEY` | *(required)* | TypeSafe API key |
+| `JEV_API_URL` | `https://api.typesafe.ai/v1/systemone` | JEV API endpoint |
+| `JEV_MODEL` | `jev-latest` | JEV model |
+| `JEV_THRESHOLD` | `0.8` | Minimum determinism score (0–1) |
+| `JEV_MIN_CONFIDENCE` | `1.0` | Minimum confidence score (0–2) |
+| `JEV_TIMEOUT_MS` | `3000` | Request timeout in milliseconds |
+| `JEV_MAX_TOKENS` | `400` | Maximum tokens for a deterministic response |
+
+For example, to require higher determinism and confidence, add `JEV_THRESHOLD=0.9` and `JEV_MIN_CONFIDENCE=1.2` to `.env`. Raising these thresholds makes the plugin less likely to request a concise response.
 
 ---
 
@@ -131,17 +174,17 @@ npm install
 
 ```bash
 cp .env.example .env
-# Fill with your OpenRouter API key:
-JEV_API_KEY=sk-or-v1-SEU_AQUI
-JEV_API_URL=https://openrouter.ai/api/v1/systemone
-JEV_MODEL=typesafe/jev-1.13
+# Fill with your TypeSafe API key. The URL and model shown are the defaults:
+JEV_API_KEY=your-typesafe-api-key
+JEV_API_URL=https://api.typesafe.ai/v1/systemone
+JEV_MODEL=jev-latest
 ```
 
 ### Usage in OpenCode
 
 After installation, the plugin loads automatically. Whenever a user sends a prompt:
 
-1. The JEV (via OpenRouter) classifies if the problem is deterministic
+1. JEV (via the TypeSafe SystemOne API) classifies whether the problem is deterministic
 2. If yes → injects `[JEV PRE-ANALYSIS]` into system prompt + `temperature: 0` + `maxTokens: 400`
 3. LLM responds directly — **no chain-of-thought**
 4. If not or error → `fail-open` → LLM reasons normally
